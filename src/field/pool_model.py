@@ -4,6 +4,7 @@ import argparse
 
 from src.common.config import load_config
 from src.common.io import read_json, write_json
+from src.field.espn_loader import load_espn_pick_rates
 
 
 def build_pool_model(year: int, config_path: str = "configs/config.yaml"):
@@ -12,10 +13,8 @@ def build_pool_model(year: int, config_path: str = "configs/config.yaml"):
     adv = read_json(root / "data" / "simulation" / f"advance_probs_{year}.json")
     champ = adv["champion_prob"]
 
-    # ESPN placeholder: bias toward favorites, then rebalance.
-    espn = {k: min(0.9, v * 1.35 + 0.01) for k, v in champ.items()}
-    s = sum(espn.values())
-    espn = {k: v / s for k, v in espn.items()}
+    espn_path = load_espn_pick_rates(year, config_path)
+    espn = read_json(espn_path)
 
     pool = {
         t: {
@@ -25,9 +24,7 @@ def build_pool_model(year: int, config_path: str = "configs/config.yaml"):
         }
         for t in champ
     }
-    espn_path = root / "data" / "field" / f"espn_picks_{year}.json"
     pool_path = root / "data" / "field" / f"pool_picks_{year}.json"
-    write_json(espn_path, espn)
     write_json(pool_path, pool)
     return espn_path, pool_path
 
