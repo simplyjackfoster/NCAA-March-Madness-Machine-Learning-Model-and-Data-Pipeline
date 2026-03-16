@@ -7,6 +7,7 @@ import pandas as pd
 from sklearn.calibration import IsotonicRegression
 
 from src.common.config import load_config
+from src.models.diagnostics import write_calibration_diagnostics
 
 
 def train_calibrator(config_path: str = "configs/config.yaml"):
@@ -23,6 +24,8 @@ def train_calibrator(config_path: str = "configs/config.yaml"):
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("wb") as f:
         pickle.dump(iso, f)
+
+    write_calibration_diagnostics(train["label"].to_numpy(), iso.predict(probs), root / "outputs" / "validation")
     return out
 
 

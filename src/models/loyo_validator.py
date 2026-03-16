@@ -5,31 +5,66 @@ from pathlib import Path
 
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import log_loss, brier_score_loss
+from sklearn.metrics import brier_score_loss, log_loss
 
 from src.common.config import load_config
 from src.common.io import write_json
 
 
+FEATURES = ["elo_diff", "net_rating_diff", "tempo_diff"]
+
+
 def run_loyo(config_path: str = "configs/config.yaml") -> Path:
     cfg = load_config(config_path)
     root = cfg["_root"]
-    train = pd.read_parquet(root / "data" / "processed" / "train.parquet")
+    train = pd.read_parquet(root / "data" / "processed" / "train.parquet").copy()
 
-    # MVP fallback: single-year pseudo-LOYO computed as stratified split proxy.
-    cut = int(len(train) * 0.8)
-    tr, va = train.iloc[:cut], train.iloc[cut:]
-    model = LogisticRegression(max_iter=1000)
-    model.fit(tr[["elo_diff", "net_rating_diff", "tempo_diff"]], tr["label"])
-    probs = model.predict_proba(va[["elo_diff", "net_rating_diff", "tempo_diff"]])[:, 1]
+    if "season" not in train.columns:
+        raise ValueError("LOYO requires a 'season' column in training data.")
 
-    metrics = {
-        "log_loss": float(log_loss(va["label"], probs)),
-        "brier": float(brier_score_loss(va["label"], probs)),
-        "n_validation": int(len(va)),
+    metrics = []
+    for season in sorted(train["season"].unique()):
+        tr = train[train["season"] != season]
+        va = train[train["season"] == season]
+        if tr.empty or va.empty:
+            continue
+
+        model = LogisticRegression(max_iter=1000)
+        model.fit(tr[FEATURES], tr["label"])
+        probs = model.predict_proba(va[FEATURES])[:, 1]
+        metrics.append(
+            {
+                "holdout_season": int(season),
+                "log_loss": float(log_loss(va["label"], probs)),
+                "brier": float(brier_score_loss(va["label"], probs)),
+                "n_validation": int(len(va)),
+            }
+        )
+
+    if not metrics:
+        # Single-season fallback for bootstrap runs.
+        cut = int(len(train) * 0.8)
+        tr, va = train.iloc[:cut], train.iloc[cut:]
+        model = LogisticRegression(max_iter=1000)
+        model.fit(tr[FEATURES], tr["label"])
+        probs = model.predict_proba(va[FEATURES])[:, 1]
+        metrics.append(
+            {
+                "holdout_season": "pseudo_split",
+                "log_loss": float(log_loss(va["label"], probs)),
+                "brier": float(brier_score_loss(va["label"], probs)),
+                "n_validation": int(len(va)),
+            }
+        )
+
+    summary = {
+        "folds": metrics,
+        "mean_log_loss": float(sum(m["log_loss"] for m in metrics) / len(metrics)),
+        "mean_brier": float(sum(m["brier"] for m in metrics) / len(metrics)),
+        "n_folds": len(metrics),
     }
     out = root / "outputs" / "validation" / "loyo_results.json"
-    write_json(out, metrics)
+    write_json(out, summary)
     return out
 
 
