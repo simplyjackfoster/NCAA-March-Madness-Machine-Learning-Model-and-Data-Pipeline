@@ -10,6 +10,7 @@ from src.models.prior_model import train_prior_model
 from src.models.loyo_validator import run_loyo
 from src.models.lgbm_model import train_lgbm_proxy
 from src.models.calibrate import train_calibrator
+from src.models.xgb_model import train_xgb_model
 from src.simulation.matchup_matrix import build_matchup_matrix
 from src.simulation.tournament_sim import run_simulation
 from src.field.pool_model import build_pool_model
@@ -26,6 +27,7 @@ def run_pipeline(year: int, config: str = "configs/config.yaml"):
     train_prior_model(config)
     run_loyo(config)
     train_lgbm_proxy(config)
+    train_xgb_model(config)
     train_calibrator(config)
     build_matchup_matrix(year, config)
     run_simulation(year, config)
