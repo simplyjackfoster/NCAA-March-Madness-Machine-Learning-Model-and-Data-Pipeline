@@ -15,7 +15,7 @@ python pipeline.py --year 2026
 
 - Raw input scaffold: `data/raw/barttorvik/barttorvik_{year}.csv`
 - Feature sets: `data/features/team_season_{year}.parquet`, `data/features/games_{year}.parquet`
-- Models: `artifacts/models/prior_model.pkl`, `artifacts/models/lgbm_model.pkl`
+- Models: `artifacts/models/prior_model.pkl`, `artifacts/models/lgbm_model.pkl`, `artifacts/models/xgb_model.pkl`
 - Calibration + validation: `artifacts/calibrators/isotonic.pkl`, `outputs/validation/loyo_results.json`
 - Tournament simulation: `data/tournament/prob_matrix_{year}.npy`, `data/simulation/advance_probs_{year}.json`
 - Optimization + output: `data/optimization/candidates_{year}.parquet`, `outputs/bracket_{year}_final.json`, `outputs/bracket_{year}.txt`
