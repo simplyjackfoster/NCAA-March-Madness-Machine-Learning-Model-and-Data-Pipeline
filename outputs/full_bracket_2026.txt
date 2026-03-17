@@ -1,0 +1,91 @@
+2026 MARCH MADNESS BRACKET PICKS
+============================================================
+
+Champion: Duke
+Champion Probability: 55.6%
+Estimated P(Win Pool): 57.8%
+Strategy: Balanced
+
+--- First Round ---
+  (1) Duke                   vs (10) UCF                     ->  (1) Duke [100%]
+  (11) South Florida          vs (12) Northern Iowa           ->  (11) South Florida [98%]
+  (13) Cal Baptist            vs (14) North Dakota St.        ->  (13) Cal Baptist [82%]
+  (15) Furman                 vs (16) Siena                   ->  (16) Siena [64%]
+  (2) Connecticut            vs (3) Michigan St.            ->  (2) Connecticut [76%]
+  (4) Kansas                 vs (5) St. John's              ->  (5) St. John's [92%]
+  (6) Louisville             vs (7) UCLA                    ->  (6) Louisville [94%]
+  (8) Ohio St.               vs (9) TCU                     ->  (8) Ohio St. [100%]
+  (1) Michigan               vs (10) Santa Clara             ->  (1) Michigan [100%]
+  (11) SMU                    vs (12) Akron                   ->  (11) SMU [100%]
+  (13) Hofstra                vs (14) Wright St.              ->  (13) Hofstra [99%]
+  (15) Tennessee St.          vs (16) UMBC                    ->  (16) UMBC [93%]
+  (2) Iowa St.               vs (3) Virginia                ->  (2) Iowa St. [99%]
+  (4) Alabama                vs (5) Texas Tech              ->  (5) Texas Tech [73%]
+  (6) Tennessee              vs (7) Kentucky                ->  (6) Tennessee [100%]
+  (8) Georgia                vs (9) Saint Louis             ->  (8) Georgia [87%]
+  (1) Florida                vs (10) Texas A&M               ->  (1) Florida [100%]
+  (11) VCU                    vs (12) McNeese St.             ->  (11) VCU [99%]
+  (13) Troy                   vs (14) Penn                    ->  (13) Troy [57%]
+  (15) Idaho                  vs (16) Prairie View A&M        ->  (15) Idaho [100%]
+  (2) Houston                vs (3) Illinois                ->  (3) Illinois [71%]
+  (4) Nebraska               vs (5) Vanderbilt              ->  (5) Vanderbilt [99%]
+  (6) North Carolina         vs (7) Saint Mary's            ->  (7) Saint Mary's [64%]
+  (8) Clemson                vs (9) Iowa                    ->  (9) Iowa [92%]
+  (1) Arizona                vs (10) Missouri                ->  (1) Arizona [100%]
+  (11) Texas                  vs (12) High Point              ->  (11) Texas [100%]
+  (13) Hawaii                 vs (14) Kennesaw St.            ->  (13) Hawaii [97%]
+  (15) Queens                 vs (16) LIU                     ->  (15) Queens [97%]
+  (2) Purdue                 vs (3) Gonzaga                 ->  (2) Purdue [100%]
+  (4) Arkansas               vs (5) Wisconsin               ->  (4) Arkansas [59%]
+  (6) BYU                    vs (7) Miami FL                ->  (6) BYU [64%]
+  (8) Villanova              vs (9) Utah St.                ->  (9) Utah St. [87%]
+
+--- Second Round ---
+  (1) Duke                   vs (11) South Florida           ->  (1) Duke [100%]
+  (13) Cal Baptist            vs (16) Siena                   ->  (13) Cal Baptist [100%]
+  (2) Connecticut            vs (5) St. John's              ->  (2) Connecticut [89%]
+  (6) Louisville             vs (8) Ohio St.                ->  (6) Louisville [87%]
+  (1) Michigan               vs (11) SMU                     ->  (1) Michigan [100%]
+  (13) Hofstra                vs (16) UMBC                    ->  (13) Hofstra [100%]
+  (2) Iowa St.               vs (5) Texas Tech              ->  (2) Iowa St. [97%]
+  (6) Tennessee              vs (8) Georgia                 ->  (6) Tennessee [100%]
+  (1) Florida                vs (11) VCU                     ->  (1) Florida [100%]
+  (13) Troy                   vs (15) Idaho                   ->  (15) Idaho [74%]
+  (3) Illinois               vs (5) Vanderbilt              ->  (3) Illinois [99%]
+  (7) Saint Mary's           vs (9) Iowa                    ->  (9) Iowa [58%]
+  (1) Arizona                vs (11) Texas                   ->  (1) Arizona [100%]
+  (13) Hawaii                 vs (15) Queens                  ->  (13) Hawaii [100%]
+  (2) Purdue                 vs (4) Arkansas                ->  (2) Purdue [100%]
+  (6) BYU                    vs (9) Utah St.                ->  (9) Utah St. [67%]
+
+--- Sweet 16 ---
+  (1) Duke                   vs (13) Cal Baptist             ->  (1) Duke [100%]
+  (2) Connecticut            vs (6) Louisville              ->  (2) Connecticut [88%]
+  (1) Michigan               vs (13) Hofstra                 ->  (1) Michigan [100%]
+  (2) Iowa St.               vs (6) Tennessee               ->  (2) Iowa St. [99%]
+  (1) Florida                vs (15) Idaho                   ->  (1) Florida [100%]
+  (3) Illinois               vs (9) Iowa                    ->  (3) Illinois [100%]
+  (1) Arizona                vs (13) Hawaii                  ->  (1) Arizona [100%]
+  (2) Purdue                 vs (9) Utah St.                ->  (2) Purdue [100%]
+
+--- Elite 8 ---
+  (1) Duke                   vs (2) Connecticut             ->  (1) Duke [100%]
+  (1) Michigan               vs (2) Iowa St.                ->  (1) Michigan [99%]
+  (1) Florida                vs (3) Illinois                ->  (3) Illinois [53%]
+  (1) Arizona                vs (2) Purdue                  ->  (1) Arizona [90%]
+
+--- Final Four ---
+  (1) Duke                   vs (1) Michigan                ->  (1) Duke [64%]
+  (3) Illinois               vs (1) Arizona                 ->  (1) Arizona [87%]
+
+--- Championship ---
+  (1) Duke                   vs (1) Arizona                 ->  (1) Duke [83%]
+
+--- Alternative Champions ---
+ - Duke: champ_prob=0.556, field_pick=0.535, p_win_pool=0.578
+ - Michigan: champ_prob=0.268, field_pick=0.262, p_win_pool=0.275
+ - Arizona: champ_prob=0.167, field_pick=0.166, p_win_pool=0.168
+ - Florida: champ_prob=0.005, field_pick=0.012, p_win_pool=0.002
+ - Illinois: champ_prob=0.003, field_pick=0.010, p_win_pool=0.001
+ - Purdue: champ_prob=0.001, field_pick=0.008, p_win_pool=0.000
+ - Houston: champ_prob=0.000, field_pick=0.007, p_win_pool=0.000
