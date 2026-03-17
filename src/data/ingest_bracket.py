@@ -45,7 +45,8 @@ def ingest_bracket(year: int, config_path: str = "configs/config.yaml") -> Path:
         df = df.copy()
         df["slot"] = range(1, len(df) + 1)
 
-    df.insert(0, "season", year)
+    if "season" not in df.columns:
+        df.insert(0, "season", year)
     out_path = root / "data" / "raw" / "bracket" / f"bracket_{year}.csv"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     df[["season", "team_name", "seed", "region", "slot"]].to_csv(out_path, index=False)

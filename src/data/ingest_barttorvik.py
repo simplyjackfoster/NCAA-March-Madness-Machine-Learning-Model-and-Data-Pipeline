@@ -26,10 +26,12 @@ def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
         if key in BT_COLUMN_ALIASES:
             remap[c] = BT_COLUMN_ALIASES[key]
     out = df.rename(columns=remap).copy()
-    required = ["team_name", "adj_o", "adj_d", "tempo"]
+    required = ["team_name", "adj_o", "adj_d"]
     missing = [c for c in required if c not in out.columns]
     if missing:
         raise DataSourceError(f"barttorvik: normalized data missing columns {missing}")
+    if "tempo" not in out.columns:
+        out["tempo"] = 68.0  # NCAA average fallback when not in source data
     return out
 
 

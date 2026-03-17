@@ -29,7 +29,7 @@ def run_simulation(year: int, config_path: str = "configs/config.yaml"):
             how="left",
         )
         ordered = merged.sort_values(["slot", "seed"], ascending=[True, True])["team_idx"].dropna().astype(int).tolist()
-        alive_template = ordered if len(ordered) == n else list(range(n))
+        alive_template = ordered if len(ordered) >= 2 else list(range(n))
     else:
         alive_template = list(range(n))
 

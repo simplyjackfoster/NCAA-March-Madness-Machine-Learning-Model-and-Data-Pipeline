@@ -13,10 +13,10 @@ data:
 # After pasting Barttorvik and KenPom stats, uncomment those local_path lines.
 data_sources:
   barttorvik:
-    local_path:       # uncomment and set after pasting: data/raw/barttorvik/barttorvik_2026.csv
+    local_path: data/raw/barttorvik/barttorvik_2026.csv
     url_template:
   kenpom:
-    local_path:       # uncomment and set after pasting: data/raw/kenpom/kenpom_2026.csv
+    local_path: data/raw/kenpom/kenpom_2026.csv
     url_template:
   kaggle:
     local_path: data/raw/kaggle/regular_season_2026.csv
