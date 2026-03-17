@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
@@ -65,9 +66,15 @@ Strategy Profile: {selection['selection_logic']}
 
     try:
         full = _build_full_bracket(year, root)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         full_txt = f"{summary}\n{full}"
-        full_out = root / "outputs" / f"full_bracket_{year}.txt"
-        full_out.write_text(full_txt, encoding="utf-8")
+        # Always overwrite the latest for easy access
+        latest = root / "outputs" / f"full_bracket_{year}.txt"
+        latest.write_text(full_txt, encoding="utf-8")
+        # Also save a timestamped copy to preserve each run
+        runs_dir = root / "outputs" / "runs"
+        runs_dir.mkdir(exist_ok=True)
+        (runs_dir / f"full_bracket_{year}_{ts}.txt").write_text(full_txt, encoding="utf-8")
     except Exception:
         pass  # don't fail the pipeline if full bracket can't be built
 
