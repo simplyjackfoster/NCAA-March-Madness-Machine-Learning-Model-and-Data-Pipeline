@@ -6,6 +6,7 @@ from src.data.ingest_barttorvik import ingest_barttorvik
 from src.data.ingest_kaggle import ingest_kaggle
 from src.data.ingest_kenpom import ingest_kenpom
 from src.data.build_crosswalk import build_crosswalk
+from src.data.ingest_bracket import ingest_bracket
 from src.features.team_features import build_team_features
 from src.features.game_features import build_game_features
 from src.models.prior_model import train_prior_model
@@ -32,6 +33,7 @@ def run_pipeline(year: int, config: str = "configs/config.yaml"):
     ingest_barttorvik(year, config)
     ingest_kaggle(year, config)
     ingest_kenpom(year, config)
+    ingest_bracket(year, config)
     build_crosswalk(year, config)
     build_team_features(year, config)
     build_game_features(year, config)

@@ -19,10 +19,24 @@ def run_simulation(year: int, config_path: str = "configs/config.yaml"):
     n = len(teams)
     sims = int(cfg["simulation"]["num_sims"])
 
+    bracket_path = root / "data" / "raw" / "bracket" / f"bracket_{year}.csv"
+    if bracket_path.exists():
+        bracket = pd.read_csv(bracket_path)
+        merged = bracket.merge(
+            teams.reset_index().rename(columns={"index": "team_idx"}),
+            left_on="team_name",
+            right_on="display_name",
+            how="left",
+        )
+        ordered = merged.sort_values(["slot", "seed"], ascending=[True, True])["team_idx"].dropna().astype(int).tolist()
+        alive_template = ordered if len(ordered) == n else list(range(n))
+    else:
+        alive_template = list(range(n))
+
     champions = Counter()
     rows = []
     for sim in range(sims):
-        alive = list(range(n))
+        alive = alive_template.copy()
         round_num = 0
         while len(alive) > 1:
             round_num += 1

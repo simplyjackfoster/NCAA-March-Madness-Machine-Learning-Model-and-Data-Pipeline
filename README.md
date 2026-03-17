@@ -13,7 +13,8 @@ python pipeline.py --year 2026
 
 ## Pipeline outputs
 
-- Raw input scaffold: `data/raw/barttorvik/barttorvik_{year}.csv`
+- Raw inputs: `data/raw/barttorvik/barttorvik_{year}.csv`, `data/raw/kenpom/kenpom_{year}.csv`, `data/raw/kaggle/regular_season_{year}.csv`
+- Bracket field: `data/raw/bracket/bracket_{year}.csv`
 - Feature sets: `data/features/team_season_{year}.parquet`, `data/features/games_{year}.parquet`
 - Models: `artifacts/models/prior_model.pkl`, `artifacts/models/lgbm_model.pkl`, `artifacts/models/xgb_model.pkl`
 - Calibration + validation: `artifacts/calibrators/isotonic.pkl`, `outputs/validation/loyo_results.json`
@@ -24,3 +25,12 @@ python pipeline.py --year 2026
 
 - This implementation is intentionally MVP-oriented and offline-friendly.
 - Stage scripts are modular and can be run independently.
+
+## External data sources (APIs/CSVs)
+
+You can connect each ingestion stage to either:
+- a local CSV via `data_sources.<source>.local_path`, or
+- a remote CSV endpoint via `data_sources.<source>.url_template` (supports `{year}`).
+
+Supported sources: `barttorvik`, `kenpom`, `kaggle`, and `bracket`.
+If a source is not configured (or fails), the pipeline falls back to the offline synthetic defaults.
