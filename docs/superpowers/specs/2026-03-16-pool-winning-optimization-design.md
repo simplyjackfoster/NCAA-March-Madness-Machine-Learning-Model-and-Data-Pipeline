@@ -40,7 +40,9 @@ kaggle historical  ──────→  game_features (+ seed_diff)
                           ensemble model
                                  │
                                  ▼
-                     Platt calibration  ←── train on historical tourney outcomes
+                     Platt calibration  ←── build_calibration_set.py
+                     (fit on Kaggle tourney             (joins Kaggle tourney
+                      results + model preds)             results to model preds)
                                  │
                                  ▼
                           prob_matrix_{year}.npy
@@ -48,12 +50,13 @@ kaggle historical  ──────→  game_features (+ seed_diff)
                           ┌──────┴──────┐
                           ▼             ▼
                    tourney sim     seed_popularity model
-                   (5000 sims)     (historical pick rates by seed)
+                   (5000 sims)     (historical pick rates by seed + bracket)
                         │               │
                         └──────┬────────┘
                                ▼
                         pool_simulator
-                        (10k pool sims × N opponents)
+                        (user_bracket + pool_size opponents
+                         × 10k tournament sims)
                                │
                                ▼
                     top-3 champion picks
@@ -62,62 +65,127 @@ kaggle historical  ──────→  game_features (+ seed_diff)
 
 ## Component Details
 
+### New: `src/data/build_calibration_set.py`
+
+Produces the labeled `(model_prob, actual_outcome)` pairs that Platt scaling requires.
+
+Steps:
+1. Load Kaggle `MNCAATourneyCompactResults.csv` (historical tournament games 2003–2024)
+2. For each historical tournament game, compute the ensemble model's predicted win probability using the team features for that year
+3. Output `data/processed/calibration_set.parquet` with columns `[model_prob, outcome]`
+
+This is called once before `calibrate.py`. The output is reused every pipeline run.
+
 ### New: `src/field/seed_popularity.py`
 
-Hard-coded historical championship pick rates by seed derived from ESPN Tournament Challenge data (2013–2024):
+Hard-coded historical championship pick rates by seed from ESPN Tournament Challenge data (2013–2024):
 
-| Seed | Championship pick % |
-|------|-------------------|
-| 1    | ~58% (split across 4 teams: ~14.5% each) |
-| 2    | ~25% (split across 4 teams: ~6.25% each) |
-| 3    | ~10% (split across 4 teams: ~2.5% each) |
-| 4–5  | ~5% combined |
-| 6+   | ~2% combined |
+| Seed | Championship pick % (per team) |
+|------|-------------------------------|
+| 1    | ~14.5% each (4 teams = ~58% total) |
+| 2    | ~6.25% each (4 teams = ~25% total) |
+| 3    | ~2.5% each (4 teams = ~10% total) |
+| 4–5  | ~0.6% each |
+| 6+   | ~0.2% each |
 
-Name-recognition boost applied to historically popular programs: Duke, Kentucky, Kansas, North Carolina, Michigan (each +1-2%).
+Function signature:
+```python
+def get_seed_popularity(bracket_df: pd.DataFrame, name_boosts: dict | None = None) -> dict[str, float]:
+```
 
-Returns `{team_name: pick_pct}` normalized to sum to 1.0.
+`bracket_df` is the loaded `bracket_{year}.csv` (columns: `team_name`, `seed`). This maps seed rates to actual 2026 team names. `name_boosts` is an optional dict of `{team_name: extra_pct}` for historically popular programs (Duke +1.5%, Kentucky +1.5%, Kansas +1%, Michigan +0.5%, North Carolina +1%). Returns `{team_name: pick_pct}` normalized to sum to 1.0.
 
 ### New: `src/simulation/pool_simulator.py`
 
 Inputs:
 - `prob_matrix` — calibrated n×n win probability matrix
 - `seed_popularity` — `{team: field_pick_pct}` from seed model
-- `bracket_order` — list of team indices in slot order
+- `bracket_order` — list of team indices in slot order (64 teams)
+- `user_bracket` — dict of `{round_num: [list of team_idx picks]}` representing the user's full bracket beyond the champion; constructed greedily (always pick higher-probability team for each matchup) by the caller
 - `pool_size` — number of opponents (default 20)
 - `num_sims` — tournament simulations (default 10,000)
-- `scoring` — points per round [1, 2, 4, 8, 16, 32]
+- `scoring` — points per round (default `[1, 2, 4, 8, 16, 32]`)
 
 Algorithm:
-1. For each tournament simulation:
-   a. Simulate one tournament outcome using prob_matrix → compute scores for all possible brackets
-   b. Generate `pool_size` synthetic opponent brackets by sampling champion picks from seed_popularity, then filling remaining picks proportional to prob_matrix
-   c. Score each opponent bracket against the tournament outcome
-2. For each candidate champion pick, track how often the user's bracket score exceeds all opponents' scores
-3. Return `{team: p_win_pool}` sorted descending
+1. Pre-generate `pool_size` synthetic opponent brackets:
+   - Each opponent's champion is sampled from `seed_popularity` distribution
+   - Each opponent's remaining picks are generated by sequentially simulating each matchup using `prob_matrix[i, j]` as a Bernoulli draw, round by round, with winners from each round propagating forward as the inputs to the next round
+2. For each of `num_sims` tournament simulations:
+   a. Simulate one tournament outcome (round-by-round Bernoulli draws)
+   b. Score the user's bracket against this outcome using ESPN scoring
+   c. Score each opponent bracket against this outcome
+   d. Record whether user_score > max(opponent_scores)
+3. For each candidate champion pick (replace user champion with candidate), repeat step 2
+4. Return `{team: p_win_pool}` — fraction of sims where user wins, for each candidate champion
 
 ### Modified: `src/field/espn_loader.py`
 
-Replace circular formula (`model_prob * 1.3 + 0.01`) with output from `seed_popularity.py`. Existing interface preserved — still returns a path to a JSON file.
+Replace circular formula with `get_seed_popularity(bracket_df)` call. Load bracket CSV from config path. Existing interface preserved — still returns a path to a JSON file.
 
 ### Modified: `src/features/team_features.py`
 
 Add three columns:
-- `seed` — from `bracket_{year}.csv` (join on team_name)
-- `adj_em` — from KenPom (`adj_em = adj_o - adj_d` proxy if not present, or direct column)
-- `luck` — from KenPom (0.0 default if not present)
+- `seed` — from `bracket_{year}.csv` (left join on `team_name`)
+- `adj_em` — from KenPom (`adj_em` column if present, else `adj_o - adj_d` proxy)
+- `luck` — from KenPom (`luck` column if present, else 0.0 default)
 
 ### Modified: `src/features/game_features.py`
 
-Add `seed_diff` feature to matchup feature vector. Seeds are strong predictors of tournament outcomes independent of efficiency ratings.
+Add `seed_diff = seed_a - seed_b` to matchup feature vector. Seeds are strong predictors of tournament outcomes independent of efficiency ratings.
 
 ### Modified: `src/models/calibrate.py`
 
-Replace elo-percentile hack with Platt scaling (logistic regression) fit on actual ensemble model output probabilities vs historical tournament game outcomes. This produces realistic win probabilities (55%/60% range) instead of near-0%/100%.
+Replace elo-percentile hack with Platt scaling (logistic regression) fit on `data/processed/calibration_set.parquet` produced by `build_calibration_set.py`. Apply calibrator to ensemble output probabilities. This produces realistic win probabilities (55–80% range for strong favorites) instead of near-0%/100%.
 
 ### Modified: `src/optimization/leverage.py`
 
-Replace `leverage = model_prob / field_prob` formula with P(win pool) output from `pool_simulator.py`. Pool-size-aware by construction.
+Replace `leverage = model_prob / field_prob` formula with P(win pool) output from `pool_simulator.py`. Pool-size-aware by construction. Output: `leveraged_candidates_{year}.parquet` with `p_win_pool` column from simulation.
+
+### Removed/replaced: `src/optimization/champion_search.py`
+
+Contains duplicate leverage logic (`p_win_pool = p * leverage`) that will produce inconsistent results after the pool simulator is wired in. Remove this step from the pipeline and delete the file, as `leverage.py` (now wrapping the pool simulator) covers its responsibility.
+
+### Modified: `pipeline.py`
+
+Wire pool simulator into execution order:
+1. After `run_simulation`
+2. Before `compute_leverage` (which now calls pool simulator internally)
+3. Remove `run_champion_search` call and its import (champion_search.py deleted)
+
+New imports to add:
+```python
+from src.data.build_calibration_set import build_calibration_set
+from src.simulation.pool_simulator import run_pool_simulation
+```
+
+`build_calibration_set` is called once near the top of the pipeline (after Kaggle ingest, before model training). `run_pool_simulation` is called after `run_simulation`, before `compute_leverage`.
+
+### Modified: `src/export/bracket_formatter.py`
+
+Update to read and render the new top-3 output format. New JSON schema for `bracket_{year}_final.json`:
+
+```json
+{
+  "top_picks": [
+    {"champion": "Duke", "model_prob": 0.38, "field_pick": 0.18, "p_win_pool": 0.124},
+    {"champion": "Florida", "model_prob": 0.22, "field_pick": 0.08, "p_win_pool": 0.091},
+    {"champion": "Michigan", "model_prob": 0.18, "field_pick": 0.12, "p_win_pool": 0.068}
+  ],
+  "selected_champion": "Duke",
+  "champ_prob": 0.38,
+  "p_win_pool": 0.124,
+  "selection_logic": "balanced"
+}
+```
+
+Output display:
+```
+Top Champion Picks for Pool (pool size: 20)
+==========================================
+1. Duke          model=38%  field=18%  P(win pool)=12.4%
+2. Florida       model=22%  field= 8%  P(win pool)= 9.1%
+3. Michigan      model=18%  field=12%  P(win pool)= 6.8%
+```
 
 ### Modified: `configs/config.yaml`
 
@@ -137,30 +205,18 @@ Three warnings currently flood pipeline output on every run:
 2. **numpy zero-variance divide** — add `.clip(lower=1e-9)` in `src/models/ensemble.py` correlation computation
 3. **sklearn feature names** — pass DataFrame with column names (not raw numpy arrays) through prediction paths in `src/simulation/matchup_matrix.py`
 
-## Output Changes
-
-Current: single champion recommendation.
-
-New: top-3 champion picks displayed in bracket output:
-```
-Top Champion Picks for Pool (pool size: 20)
-==========================================
-1. Duke          model_prob=38%  field_pick=18%  P(win pool)=12.4%
-2. Florida       model_prob=22%  field_pick=8%   P(win pool)=9.1%
-3. Michigan      model_prob=18%  field_pick=12%  P(win pool)=6.8%
-```
-
 ## Testing Approach
 
-- Unit test `seed_popularity.py`: pick rates sum to 1.0, all 64 bracket teams get a non-zero rate
-- Unit test `pool_simulator.py`: with a 2-team bracket and known probs, verify P(win pool) is analytically correct
-- Integration test: run full pipeline with 2024 data (known outcomes), verify calibrated probs are in [0.45, 0.85] range for seed-1 vs seed-16
-- Regression test: existing `bracket_2026.txt` output format unchanged
+- Unit test `seed_popularity.py`: pick rates sum to 1.0; all 64 bracket teams have non-zero rate; Duke's rate > average 1-seed rate (name boost applied)
+- Unit test `pool_simulator.py`: with a 2-team bracket and `prob_matrix = [[0, 0.7], [0.3, 0]]`, verify P(win pool) is analytically close to expected value; verify result is in [0, 1]
+- Integration test: run full pipeline with 2025 data. Assert `max(all_matchup_probs) < 0.95` (no matchup should be near-certain after calibration). Assert seed-1 vs seed-16 win probability is in [0.75, 0.95].
+- Regression test: `full_bracket_2026.txt` format unchanged; champion name still present in output
 
 ## Files Summary
 
 | File | Action |
 |------|--------|
+| `src/data/build_calibration_set.py` | Create |
 | `src/field/seed_popularity.py` | Create |
 | `src/simulation/pool_simulator.py` | Create |
 | `src/field/espn_loader.py` | Modify |
@@ -168,7 +224,10 @@ Top Champion Picks for Pool (pool size: 20)
 | `src/features/game_features.py` | Modify |
 | `src/models/calibrate.py` | Modify |
 | `src/optimization/leverage.py` | Modify |
+| `src/export/bracket_formatter.py` | Modify |
+| `pipeline.py` | Modify |
 | `src/models/xgb_model.py` | Modify (warning fix) |
 | `src/models/ensemble.py` | Modify (warning fix) |
 | `src/simulation/matchup_matrix.py` | Modify (warning fix) |
+| `src/optimization/champion_search.py` | Delete |
 | `configs/config.yaml` | Modify |
