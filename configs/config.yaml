@@ -8,21 +8,21 @@ data:
   random_seed: 42
   num_teams: 64
 
-# Optional external data connectors.
-# Set either local_path (repo-relative or absolute) or url_template for each source.
-# url_template supports {year}, e.g. https://example.com/barttorvik_{year}.csv
+# External data connectors.
+# bracket and kaggle are set automatically — do not change these.
+# After pasting Barttorvik and KenPom stats, uncomment those local_path lines.
 data_sources:
   barttorvik:
-    local_path:
+    local_path:       # uncomment and set after pasting: data/raw/barttorvik/barttorvik_2026.csv
     url_template:
   kenpom:
-    local_path:
+    local_path:       # uncomment and set after pasting: data/raw/kenpom/kenpom_2026.csv
     url_template:
   kaggle:
-    local_path:
+    local_path: data/raw/kaggle/regular_season_2026.csv
     url_template:
   bracket:
-    local_path:
+    local_path: data/raw/bracket/bracket_2026.csv
     url_template:
 
 simulation:
