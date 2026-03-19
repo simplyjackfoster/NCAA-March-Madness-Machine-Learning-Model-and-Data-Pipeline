@@ -28,7 +28,9 @@ def run_simulation(year: int, config_path: str = "configs/config.yaml"):
             right_on="display_name",
             how="left",
         )
-        ordered = merged.sort_values(["slot", "seed"], ascending=[True, True])["team_idx"].dropna().astype(int).tolist()
+        # Use seed_x (from bracket) if seed column is duplicated after merge
+        seed_col = "seed_x" if "seed_x" in merged.columns else "seed"
+        ordered = merged.sort_values(["slot", seed_col], ascending=[True, True])["team_idx"].dropna().astype(int).tolist()
         alive_template = ordered if len(ordered) >= 2 else list(range(n))
     else:
         alive_template = list(range(n))

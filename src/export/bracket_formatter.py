@@ -19,12 +19,13 @@ def _build_full_bracket(year: int, root) -> str:
         teams.reset_index().rename(columns={"index": "team_idx"}),
         left_on="team_name", right_on="display_name", how="left",
     )
+    seed_col = "seed_x" if "seed_x" in merged.columns else "seed"
     ordered = (
-        merged.sort_values(["slot", "seed"], ascending=[True, True])
+        merged.sort_values(["slot", seed_col], ascending=[True, True])
         .dropna(subset=["team_idx"])
     )
     idx_to_name = dict(zip(ordered["team_idx"].astype(int), ordered["team_name"]))
-    idx_to_seed = dict(zip(ordered["team_idx"].astype(int), ordered["seed"].astype(int)))
+    idx_to_seed = dict(zip(ordered["team_idx"].astype(int), ordered[seed_col].astype(int)))
     alive = ordered["team_idx"].astype(int).tolist()
 
     round_names = ["First Round", "Second Round", "Sweet 16", "Elite 8", "Final Four", "Championship"]
