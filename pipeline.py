@@ -5,8 +5,9 @@ import argparse
 from src.data.ingest_barttorvik import ingest_barttorvik
 from src.data.ingest_kaggle import ingest_kaggle
 from src.data.ingest_kenpom import ingest_kenpom
-from src.data.build_crosswalk import build_crosswalk
 from src.data.ingest_bracket import ingest_bracket
+from src.data.build_crosswalk import build_crosswalk
+from src.data.build_calibration_set import build_calibration_set
 from src.features.team_features import build_team_features
 from src.features.game_features import build_game_features
 from src.models.prior_model import train_prior_model
@@ -18,9 +19,9 @@ from src.models.ensemble import build_ensemble_weights
 from src.simulation.matchup_matrix import build_matchup_matrix
 from src.simulation.tournament_sim import run_simulation
 from src.simulation.score_sim import simulate_scores
+from src.simulation.pool_simulator import run_pool_simulation
 from src.field.pool_model import build_pool_model
 from src.field.field_sampler import sample_field_brackets
-from src.optimization.champion_search import run_champion_search
 from src.optimization.expected_score import compute_expected_scores
 from src.optimization.leverage import compute_leverage
 from src.optimization.greedy_optimizer import select_final_bracket
@@ -37,6 +38,7 @@ def run_pipeline(year: int, config: str = "configs/config.yaml"):
     build_crosswalk(year, config)
     build_team_features(year, config)
     build_game_features(year, config)
+    build_calibration_set(config)          # generates cross-val probs for Platt scaling
     train_prior_model(config)
     run_loyo(config)
     train_lgbm_proxy(config)
@@ -48,7 +50,7 @@ def run_pipeline(year: int, config: str = "configs/config.yaml"):
     simulate_scores(year, config)
     build_pool_model(year, config)
     sample_field_brackets(year, config)
-    run_champion_search(year, config)
+    run_pool_simulation(year, config)      # replaces champion_search; writes candidates
     compute_expected_scores(year, config)
     compute_leverage(year, config)
     select_final_bracket(year, config)

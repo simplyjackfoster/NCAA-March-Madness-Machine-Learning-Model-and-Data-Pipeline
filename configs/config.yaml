@@ -31,4 +31,5 @@ simulation:
 optimization:
   min_champion_prob: 0.02
   risk_tolerance: balanced
-  pool_size: 50
+  pool_size: 20
+  pool_sims: 10000
