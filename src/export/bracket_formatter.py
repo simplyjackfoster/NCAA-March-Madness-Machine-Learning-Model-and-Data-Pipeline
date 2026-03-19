@@ -64,10 +64,26 @@ Strategy Profile: {selection['selection_logic']}
     out = root / "outputs" / f"bracket_{year}.txt"
     out.write_text(summary, encoding="utf-8")
 
+    # Build top-3 picks header (prepended to full bracket only, not to summary .txt)
+    top_picks_header = ""
+    if "top_picks" in selection:
+        lines_list = [
+            f"Top Champion Picks for Pool (pool size: {cfg['optimization']['pool_size']})",
+            "=" * 50,
+        ]
+        for rank, pick in enumerate(selection["top_picks"], 1):
+            lines_list.append(
+                f"{rank}. {pick['champion']:<22} "
+                f"model={pick['model_prob']:.0%}  "
+                f"field={pick['field_pick']:.0%}  "
+                f"P(win pool)={pick['p_win_pool']:.1%}"
+            )
+        top_picks_header = "\n".join(lines_list) + "\n\n"
+
     try:
         full = _build_full_bracket(year, root)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        full_txt = f"{summary}\n{full}"
+        full_txt = f"{top_picks_header}{summary}\n{full}"
         # Always overwrite the latest for easy access
         latest = root / "outputs" / f"full_bracket_{year}.txt"
         latest.write_text(full_txt, encoding="utf-8")
