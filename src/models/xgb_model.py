@@ -19,7 +19,6 @@ def train_xgb_model(config_path: str = "configs/config.yaml", params_path: str =
     y = train["label"]
 
     params.setdefault("random_state", cfg["data"]["random_seed"])
-    params.setdefault("use_label_encoder", False)
     model = XGBClassifier(**params)
     model.fit(x, y)
 
