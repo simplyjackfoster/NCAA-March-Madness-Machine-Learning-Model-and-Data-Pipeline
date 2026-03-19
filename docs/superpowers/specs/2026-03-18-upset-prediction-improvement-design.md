@@ -15,15 +15,18 @@ Real historical tournament data is already ingested (`MNCAATourneyCompactResults
 Three coordinated changes:
 
 ```
-Real Outcomes  →  Richer Features  →  Seed-Matchup Calibration  →  Prob Matrix
-     ↑                  ↑                        ↑
-MNCAATourneyResults  KenPom/Barttorvik    Historical upset rates
-                     (already ingested)    by seed pair (1v16, etc.)
+Real Outcomes  →  Validated Features  →  Seed-Matchup Calibration  →  Prob Matrix
+     ↑                  ↑                          ↑
+MNCAATourneyResults  Massey ordinals          Historical upset rates
+(1,449 games)        (POM/MOR/SAG,            by seed pair (1v16, etc.)
+                      all seasons 2003-2025)
 ```
 
-**Change 1 — Training data:** Replace synthetic labels with real tournament game results (~1,000 games, 2003–2024).
+**Change 1 — Training data:** Replace synthetic labels with real tournament game results (~1,449 games, 2003–2025).
 
-**Change 2 — Feature set:** Add three features that predict upsets independent of ratings: tempo mismatch, luck differential, strength-of-schedule differential.
+**Change 2 — Feature set:** Add three Massey ranking differentials (POM, MOR, SAG), each empirically validated at r≈0.52–0.54 correlation with upset outcome. These features determine *which* games within a seed matchup are closer calls — e.g. a 5v12 where POM rankings are nearly equal gets a higher upset probability than one where the 5 seed is a clear #15 nationally.
+
+**Why this produces realistic upset counts (not just always-pick-the-favorite):** The features determine favoredness, but training on *real outcomes* teaches the model the correct probabilities. When a 12 seed beats a 5 seed 36.6% of the time in history, the model trained on those games learns to output ~63% for the 5 seed — not 95%. The seed-matchup calibration layer (Change 3) anchors these probabilities to historical rates as a safeguard.
 
 **Change 3 — Calibration:** After Platt scaling, blend probabilities toward empirical per-seed-matchup win rates from historical data.
 
@@ -43,15 +46,19 @@ Only seasons where team features exist (2003–2024) are included. Games where t
 
 ### New Features in Feature Vector
 
-Three new columns added to `game_features.py` matchup rows:
+Three Massey ranking differentials added to the matchup feature vector. All validated empirically on 1,449 historical tournament games (2003–2025):
 
-| Feature | Source column | Computation | Why it predicts upsets |
+| Feature | Source | Correlation with upset | Coverage |
 |---|---|---|---|
-| `tempo_mismatch` | Barttorvik `adj_tempo` | `abs(tempo_a - tempo_b)` | Fast-paced underdogs create chaos vs slow favorites |
-| `luck_diff` | KenPom `luck` | `luck_a - luck_b` | High-luck teams regress in tournament; model currently ignores this |
-| `sos_diff` | Barttorvik SOS column | `sos_a - sos_b` | Weak-schedule favorites underperform vs battle-tested underdogs |
+| `rank_diff_POM` | Massey ordinals, SystemName=POM | r=+0.523 *** | n=1,449 |
+| `rank_diff_MOR` | Massey ordinals, SystemName=MOR | r=+0.530 *** | n=1,449 |
+| `rank_diff_SAG` | Massey ordinals, SystemName=SAG | r=+0.540 *** | n=1,315 |
 
-These columns are already present in ingested CSVs. `team_features.py` must expose them so `game_features.py` can compute differentials.
+Computed as `winner_rank - loser_rank` (positive = upset direction). Each system uses the latest pre-tournament ranking (RankingDayNum ≤ 133) per team per season.
+
+**Note:** Tempo mismatch, KenPom luck, and SOS differentials were considered but rejected — tempo showed no significant correlation with upsets (p=0.118), and luck/SOS lack historical data (only 2026 CSVs available). Massey ordinals are available for all seasons and are empirically validated.
+
+`team_features.py` does not need changes — ranking differentials are computed directly in `game_features.py` from the Massey ordinals file.
 
 ### `src/models/calibrate.py` — Seed-Matchup Calibration Layer
 
@@ -71,8 +78,7 @@ Already reads Kaggle historical data. Update to use real outcomes consistent wit
 
 | File | Change |
 |---|---|
-| `src/features/game_features.py` | Replace synthetic labels with real historical outcomes |
-| `src/features/team_features.py` | Expose `tempo_mismatch`, `luck_diff`, `sos_diff` columns |
+| `src/features/game_features.py` | Replace synthetic labels with real historical outcomes; add Massey ranking differentials |
 | `src/models/calibrate.py` | Add seed-matchup blending after Platt scaling |
 | `src/data/build_calibration_set.py` | Align with real-outcome training approach |
 
@@ -80,8 +86,7 @@ Already reads Kaggle historical data. Update to use real outcomes consistent wit
 
 ### Unit Tests
 
-- `game_features.py`: assert no synthetic `rng.normal` calls in label generation; assert label column is binary (0/1 only); assert row count = historical game count × 2 (mirror rows)
-- New features: assert `tempo_mismatch` ≥ 0 for all rows; assert `luck_diff` and `sos_diff` are finite (no NaN from KenPom join misses)
+- `game_features.py`: assert no synthetic `rng.normal` calls in label generation; assert label column is binary (0/1 only); assert row count = historical game count × 2 (mirror rows); assert `rank_diff_POM`, `rank_diff_MOR`, `rank_diff_SAG` columns present and finite for ≥90% of rows
 - Seed-matchup calibration: for 1v16 matchups, assert blended prob ∈ [0.90, 0.99]; for 8v9 matchups, assert blended prob ∈ [0.45, 0.55]
 
 ### Integration Test
