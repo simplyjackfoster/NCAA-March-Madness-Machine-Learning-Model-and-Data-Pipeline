@@ -104,6 +104,21 @@ def build_game_features(year: int, config_path: str = "configs/config.yaml") -> 
         if col in df.columns:
             df[col] = df[col].fillna(df[col].median())
 
+    # Guard: if any rank system has zero coverage, fail loudly rather than
+    # passing all-NaN arrays to sklearn which produces an opaque ValueError.
+    for col in [f"rank_diff_{s}" for s in _MASSEY_SYSTEMS]:
+        if col in df.columns and df[col].isna().all():
+            system = col.split("_")[-1]
+            raise ValueError(
+                f"{col} is all-NaN after median fill — no {system} rankings found "
+                f"before day {_MASSEY_DAY_CUTOFF} in MMasseyOrdinals.csv. "
+                f"Check that the Massey ordinals file contains {system} data."
+            )
+
+    # train.parquet intentionally contains ALL historical seasons from
+    # MNCAATourneyCompactResults.csv — this is the full training set.
+    # The `year` parameter only names games_{year}.parquet (for reference),
+    # not to filter training rows.
     out_path = root / "data" / "features" / f"games_{year}.parquet"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(out_path, index=False)

@@ -118,8 +118,11 @@ def test_game_features_writes_output_files(tmp_path):
         "Season": [2023, 2023], "TeamID": [1101, 1103], "Seed": ["W01", "W12"],
     }).to_csv(kaggle_dir / "MNCAATourneySeeds.csv", index=False)
     pd.DataFrame({
-        "Season": [2023, 2023], "RankingDayNum": [128, 128],
-        "SystemName": ["POM", "POM"], "TeamID": [1101, 1103], "OrdinalRank": [5, 60],
+        "Season": [2023] * 6,
+        "RankingDayNum": [128] * 6,
+        "SystemName": ["POM", "POM", "MOR", "MOR", "SAG", "SAG"],
+        "TeamID": [1101, 1103, 1101, 1103, 1101, 1103],
+        "OrdinalRank": [5, 60, 8, 55, 7, 58],
     }).to_csv(kaggle_dir / "MMasseyOrdinals.csv", index=False)
 
     out = build_game_features(2026, str(cfg_path))
@@ -202,11 +205,11 @@ def test_game_features_uses_real_outcomes(tmp_path):
     }).to_csv(kaggle_dir / "MNCAATourneySeeds.csv", index=False)
 
     pd.DataFrame({
-        "Season": [2023] * 8,
-        "RankingDayNum": [128] * 8,
-        "SystemName": ["POM"] * 4 + ["MOR"] * 4,
-        "TeamID": [1101, 1102, 1103, 1104, 1101, 1102, 1103, 1104],
-        "OrdinalRank": [5, 20, 60, 30, 8, 22, 55, 28],
+        "Season": [2023] * 12,
+        "RankingDayNum": [128] * 12,
+        "SystemName": ["POM"] * 4 + ["MOR"] * 4 + ["SAG"] * 4,
+        "TeamID": [1101, 1102, 1103, 1104] * 3,
+        "OrdinalRank": [5, 20, 60, 30, 8, 22, 55, 28, 6, 21, 58, 29],
     }).to_csv(kaggle_dir / "MMasseyOrdinals.csv", index=False)
 
     out = build_game_features(2026, str(cfg_path))
@@ -216,7 +219,7 @@ def test_game_features_uses_real_outcomes(tmp_path):
     assert set(df["label"].unique()).issubset({0, 1}), "Labels must be binary"
     assert "rank_diff_POM" in df.columns
     assert "rank_diff_MOR" in df.columns
-    assert "rank_diff_SAG" in df.columns, "rank_diff_SAG must be present even if NaN-filled (SAG missing from fixture)"
+    assert "rank_diff_SAG" in df.columns, "rank_diff_SAG must be present (all three Massey systems in fixture)"
     assert len(df) == 4, "2 games × 2 mirror rows = 4 rows"
 
 
