@@ -160,3 +160,42 @@ def test_build_calibration_set_produces_valid_probs(tmp_path):
     assert df["model_prob"].between(0, 1, inclusive="neither").all(), "model_prob must be in open interval (0, 1)"
     assert set(df["outcome"].unique()).issubset({0, 1})
     assert len(df) == n
+
+
+def test_calibrator_produces_reasonable_probabilities(tmp_path):
+    """After calibration, a 0.9 raw prob must map to < 0.95 and > 0.55."""
+    import pickle
+    import yaml
+    from src.models.calibrate import train_calibrator
+
+    config = {
+        "project": {"target_year": 2025, "base_data_dir": str(tmp_path / "data"),
+                     "artifacts_dir": str(tmp_path / "artifacts"), "outputs_dir": str(tmp_path / "outputs")},
+        "data": {"random_seed": 42, "num_teams": 4},
+    }
+    cfg_path = tmp_path / "config.yaml"
+    cfg_path.write_text(yaml.dump(config))
+
+    # Write calibration set where high raw probs -> realistic outputs
+    proc_dir = tmp_path / "data" / "processed"
+    proc_dir.mkdir(parents=True)
+    # Simulate: probs near 0.9 correspond to ~85% true win rate
+    rng = np.random.default_rng(42)
+    probs = np.clip(rng.beta(5, 2, 500), 0.01, 0.99)
+    outcomes = rng.binomial(1, probs * 0.9)
+    pd.DataFrame({"model_prob": probs, "outcome": outcomes}).to_parquet(
+        proc_dir / "calibration_set.parquet", index=False
+    )
+
+    val_dir = tmp_path / "outputs" / "validation"
+    val_dir.mkdir(parents=True)
+
+    out = train_calibrator(str(cfg_path))
+    with open(out, "rb") as f:
+        cal = pickle.load(f)
+
+    # A very high raw probability should calibrate to <0.95
+    high_prob = np.array([[0.95]])
+    calibrated = cal.predict_proba(high_prob)[0, 1]
+    assert calibrated < 0.95, f"Calibrated prob {calibrated:.3f} still too high"
+    assert calibrated > 0.70, f"Calibrated prob {calibrated:.3f} unreasonably low for 0.95 raw input"
