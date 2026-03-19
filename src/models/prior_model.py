@@ -14,7 +14,7 @@ def train_prior_model(config_path: str = "configs/config.yaml") -> Path:
     cfg = load_config(config_path)
     root = cfg["_root"]
     train = pd.read_parquet(root / "data" / "processed" / "train.parquet")
-    x = train[["elo_diff", "net_rating_diff", "tempo_diff"]]
+    x = train[["elo_diff", "net_rating_diff", "tempo_diff", "seed_diff"]]
     y = train["label"]
 
     model = LogisticRegression(max_iter=1000)

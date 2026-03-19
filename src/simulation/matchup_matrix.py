@@ -19,7 +19,7 @@ def build_matchup_matrix(year: int, config_path: str = "configs/config.yaml"):
     with (root / "artifacts" / "calibrators" / "isotonic.pkl").open("rb") as f:
         calibrator = pickle.load(f)
 
-    FEATURES = ["elo_diff", "net_rating_diff", "tempo_diff"]
+    FEATURES = ["elo_diff", "net_rating_diff", "tempo_diff", "seed_diff"]
     n = len(team_df)
     mat = np.zeros((n, n), dtype=float)
     for i in range(n):
@@ -33,6 +33,7 @@ def build_matchup_matrix(year: int, config_path: str = "configs/config.yaml"):
                     a["elo_pre"] - b["elo_pre"],
                     a["net_rating"] - b["net_rating"],
                     a["tempo"] - b["tempo"],
+                    int(a.get("seed", 8)) - int(b.get("seed", 8)),
                 ]],
                 columns=FEATURES,
             )

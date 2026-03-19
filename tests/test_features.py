@@ -88,3 +88,38 @@ def test_team_features_includes_kenpom_and_seed(tmp_path, monkeypatch):
     assert df.loc[df["display_name"] == "TeamA", "adj_em"].iloc[0] == 20.0
     assert not df["adj_em"].isna().any()
     assert not df["seed"].isna().any()
+
+
+def test_game_features_includes_seed_diff(tmp_path):
+    """games parquet must include seed_diff column."""
+    import yaml
+    from src.features.game_features import build_game_features
+
+    config = {
+        "project": {"target_year": 2025, "base_data_dir": str(tmp_path / "data"),
+                     "artifacts_dir": str(tmp_path / "artifacts"), "outputs_dir": str(tmp_path / "outputs")},
+        "data": {"random_seed": 42, "num_teams": 4},
+    }
+    cfg_path = tmp_path / "config.yaml"
+    cfg_path.write_text(yaml.dump(config))
+
+    year = 2025
+    feat_dir = tmp_path / "data" / "features"
+    feat_dir.mkdir(parents=True)
+    pd.DataFrame({
+        "season": [year] * 4,
+        "kaggle_team_id": [1, 2, 3, 4],
+        "display_name": ["TeamA", "TeamB", "TeamC", "TeamD"],
+        "adj_o": [110.0, 105.0, 100.0, 95.0],
+        "adj_d": [90.0, 95.0, 100.0, 105.0],
+        "tempo": [70.0, 68.0, 66.0, 64.0],
+        "net_rating": [20.0, 10.0, 0.0, -10.0],
+        "elo_pre": [1660.0, 1580.0, 1500.0, 1420.0],
+        "adj_em": [20.0, 10.0, 0.0, -10.0],
+        "luck": [0.0] * 4,
+        "seed": [1, 8, 5, 4],
+    }).to_parquet(feat_dir / f"team_season_{year}.parquet", index=False)
+
+    out = build_game_features(year, str(cfg_path))
+    df = pd.read_parquet(out)
+    assert "seed_diff" in df.columns, "seed_diff missing from game features"

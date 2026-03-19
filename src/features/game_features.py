@@ -31,6 +31,7 @@ def build_game_features(year: int, config_path: str = "configs/config.yaml") -> 
                 "net_rating_diff": diff,
                 "elo_diff": a["elo_pre"] - b["elo_pre"],
                 "tempo_diff": a["tempo"] - b["tempo"],
+                "seed_diff": int(a.get("seed", 8)) - int(b.get("seed", 8)),
                 "label": int(diff + rng.normal(0, 2) > 0),
             }
         )

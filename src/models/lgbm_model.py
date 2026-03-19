@@ -15,7 +15,7 @@ def train_lgbm_proxy(config_path: str = "configs/config.yaml", params_path: str 
     _ = load_yaml(root / params_path)
     train = pd.read_parquet(root / "data" / "processed" / "train.parquet")
 
-    x = train[["elo_diff", "net_rating_diff", "tempo_diff"]]
+    x = train[["elo_diff", "net_rating_diff", "tempo_diff", "seed_diff"]]
     y = train["label"]
     model = GradientBoostingClassifier(random_state=cfg["data"]["random_seed"])
     model.fit(x, y)

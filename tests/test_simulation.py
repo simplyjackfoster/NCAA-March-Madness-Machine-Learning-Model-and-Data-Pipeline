@@ -42,6 +42,7 @@ def test_ensemble_weights_constant_feature(tmp_path, monkeypatch):
         "elo_diff": elo,
         "net_rating_diff": elo * 0.5,
         "tempo_diff": np.zeros(100),   # constant — will produce NaN in corrwith
+        "seed_diff": elo * -0.5,
         "label": (elo > 0).astype(int),
     }).to_parquet(proc_dir / "train.parquet", index=False)
 
@@ -83,14 +84,15 @@ def test_matchup_matrix_no_feature_name_warning(tmp_path, monkeypatch):
         "adj_em": [20.0, 10.0, -5.0, -20.0], "luck": [0.0] * 4, "seed": [1, 8, 5, 4],
     }).to_parquet(feat_dir / f"team_season_{year}.parquet", index=False)
 
-    # Train model on 3 features (Task 3 runs before Task 5 adds seed_diff)
-    FEATURES = ["elo_diff", "net_rating_diff", "tempo_diff"]
+    # Train model on 4 features (seed_diff added in Task 5)
+    FEATURES = ["elo_diff", "net_rating_diff", "tempo_diff", "seed_diff"]
     rng = np.random.default_rng(42)
     n = 100
     elo = rng.normal(0, 5, n)
     X = pd.DataFrame({
         "elo_diff": elo, "net_rating_diff": elo * 0.5 + rng.normal(0, 1, n),
         "tempo_diff": rng.normal(0, 1, n),
+        "seed_diff": rng.integers(-15, 16, n).astype(float),
     })
     y = (elo > 0).astype(int)
     model = LogisticRegression(max_iter=1000).fit(X, y)
