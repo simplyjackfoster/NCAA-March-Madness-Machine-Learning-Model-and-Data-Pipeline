@@ -123,3 +123,40 @@ def test_game_features_includes_seed_diff(tmp_path):
     out = build_game_features(year, str(cfg_path))
     df = pd.read_parquet(out)
     assert "seed_diff" in df.columns, "seed_diff missing from game features"
+
+
+def test_build_calibration_set_produces_valid_probs(tmp_path):
+    """calibration_set.parquet must have model_prob in (0, 1) and outcome in {0, 1}."""
+    import yaml
+    from src.data.build_calibration_set import build_calibration_set
+
+    config = {
+        "project": {"target_year": 2025, "base_data_dir": str(tmp_path / "data"),
+                     "artifacts_dir": str(tmp_path / "artifacts"), "outputs_dir": str(tmp_path / "outputs")},
+        "data": {"random_seed": 42, "num_teams": 4},
+    }
+    cfg_path = tmp_path / "config.yaml"
+    cfg_path.write_text(yaml.dump(config))
+
+    # Write synthetic training data
+    proc_dir = tmp_path / "data" / "processed"
+    proc_dir.mkdir(parents=True)
+    rng = np.random.default_rng(42)
+    n = 200
+    elo = rng.normal(0, 5, n)
+    pd.DataFrame({
+        "elo_diff": elo,
+        "net_rating_diff": elo * 0.5 + rng.normal(0, 2, n),
+        "tempo_diff": rng.normal(0, 1, n),
+        "seed_diff": rng.integers(-15, 15, n),
+        "label": (elo + rng.normal(0, 2, n) > 0).astype(int),
+    }).to_parquet(proc_dir / "train.parquet", index=False)
+
+    out = build_calibration_set(str(cfg_path))
+    df = pd.read_parquet(out)
+
+    assert "model_prob" in df.columns
+    assert "outcome" in df.columns
+    assert df["model_prob"].between(0, 1, inclusive="neither").all(), "model_prob must be in open interval (0, 1)"
+    assert set(df["outcome"].unique()).issubset({0, 1})
+    assert len(df) == n
