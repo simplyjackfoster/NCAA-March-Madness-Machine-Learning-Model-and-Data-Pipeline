@@ -3,23 +3,27 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+import pandas as pd
+
 from src.common.config import load_config
-from src.common.io import read_json, write_json
+from src.common.io import write_json
+from src.field.seed_popularity import get_seed_popularity
 
 
 def load_espn_pick_rates(year: int, config_path: str = "configs/config.yaml") -> Path:
+    """Compute field championship pick rates using historical seed popularity.
+
+    Returns a JSON file mapping team_name -> pick_pct (sums to 1.0).
+    """
     cfg = load_config(config_path)
     root = cfg["_root"]
+    bracket_path = root / "data" / "raw" / "bracket" / f"bracket_{year}.csv"
 
-    adv = read_json(root / "data" / "simulation" / f"advance_probs_{year}.json")
-    champ = adv["champion_prob"]
-
-    # Offline default proxy for ESPN pick rates.
-    picks = {team: min(0.85, p * 1.3 + 0.01) for team, p in champ.items()}
-    total = sum(picks.values()) or 1.0
-    picks = {team: value / total for team, value in picks.items()}
+    bracket = pd.read_csv(bracket_path)
+    picks = get_seed_popularity(bracket)
 
     out = root / "data" / "field" / f"espn_picks_{year}.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
     write_json(out, picks)
     return out
 

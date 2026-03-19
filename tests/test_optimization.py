@@ -44,3 +44,42 @@ def test_seed_popularity_name_boost_applied():
     })
     picks = get_seed_popularity(bracket)
     assert picks["Duke"] > picks["Generic1"], "Duke should get a name-recognition boost"
+
+
+def test_espn_loader_uses_seed_model(tmp_path):
+    """espn_picks JSON must reflect seed-based rates, not circular model output."""
+    import json
+    import yaml
+    from src.field.espn_loader import load_espn_pick_rates
+
+    config = {
+        "project": {"target_year": 2025, "base_data_dir": str(tmp_path / "data"),
+                     "artifacts_dir": str(tmp_path / "artifacts"), "outputs_dir": str(tmp_path / "outputs")},
+        "data": {"random_seed": 42, "num_teams": 4},
+        "data_sources": {},
+    }
+    cfg_path = tmp_path / "config.yaml"
+    cfg_path.write_text(yaml.dump(config))
+
+    year = 2025
+    # Write bracket with seeds
+    br_dir = tmp_path / "data" / "raw" / "bracket"
+    br_dir.mkdir(parents=True)
+    pd.DataFrame({
+        "team_name": ["TeamA", "TeamB", "TeamC", "TeamD"],
+        "seed": [1, 16, 8, 9],
+        "region": ["East"] * 4,
+        "slot": [1, 2, 3, 4],
+    }).to_csv(br_dir / f"bracket_{year}.csv", index=False)
+
+    field_dir = tmp_path / "data" / "field"
+    field_dir.mkdir(parents=True)
+
+    out = load_espn_pick_rates(year, str(cfg_path))
+    picks = json.loads(out.read_text())
+
+    # Seed-1 team (TeamA) must have much higher pick rate than seed-16 (TeamB)
+    assert picks["TeamA"] > picks["TeamB"] * 10, (
+        f"Seed-1 TeamA ({picks['TeamA']:.4f}) should dominate seed-16 TeamB ({picks['TeamB']:.4f})"
+    )
+    assert abs(sum(picks.values()) - 1.0) < 1e-6
