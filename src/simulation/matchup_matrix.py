@@ -16,6 +16,10 @@ def build_matchup_matrix(year: int, config_path: str = "configs/config.yaml"):
     with (root / "artifacts" / "models" / "prior_model.pkl").open("rb") as f:
         model = pickle.load(f)
 
+    with (root / "artifacts" / "calibrators" / "isotonic.pkl").open("rb") as f:
+        calibrator = pickle.load(f)
+
+    FEATURES = ["elo_diff", "net_rating_diff", "tempo_diff"]
     n = len(team_df)
     mat = np.zeros((n, n), dtype=float)
     for i in range(n):
@@ -24,8 +28,17 @@ def build_matchup_matrix(year: int, config_path: str = "configs/config.yaml"):
                 continue
             a = team_df.iloc[i]
             b = team_df.iloc[j]
-            x = np.array([[a["elo_pre"] - b["elo_pre"], a["net_rating"] - b["net_rating"], a["tempo"] - b["tempo"]]])
-            mat[i, j] = float(model.predict_proba(x)[0, 1])
+            x = pd.DataFrame(
+                [[
+                    a["elo_pre"] - b["elo_pre"],
+                    a["net_rating"] - b["net_rating"],
+                    a["tempo"] - b["tempo"],
+                ]],
+                columns=FEATURES,
+            )
+            raw_prob = float(model.predict_proba(x)[0, 1])
+            cal_input = np.array([[raw_prob]])
+            mat[i, j] = float(calibrator.predict_proba(cal_input)[0, 1])
 
     out = root / "data" / "tournament" / f"prob_matrix_{year}.npy"
     out.parent.mkdir(parents=True, exist_ok=True)
