@@ -8,6 +8,8 @@ import pandas as pd
 
 from src.common.config import load_config
 
+FEATURES = ["elo_diff", "net_rating_diff", "tempo_diff", "seed_diff"]
+
 
 def build_matchup_matrix(year: int, config_path: str = "configs/config.yaml"):
     cfg = load_config(config_path)
@@ -19,7 +21,6 @@ def build_matchup_matrix(year: int, config_path: str = "configs/config.yaml"):
     with (root / "artifacts" / "calibrators" / "isotonic.pkl").open("rb") as f:
         calibrator = pickle.load(f)
 
-    FEATURES = ["elo_diff", "net_rating_diff", "tempo_diff", "seed_diff"]
     n = len(team_df)
     mat = np.zeros((n, n), dtype=float)
     for i in range(n):
