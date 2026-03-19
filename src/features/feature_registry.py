@@ -16,9 +16,10 @@ FEATURE_REGISTRY: list[FeatureSpec] = [
     FeatureSpec("tempo", "team", "Adjusted possessions per game"),
     FeatureSpec("net_rating", "team", "adj_o - adj_d"),
     FeatureSpec("elo_pre", "team", "Pre-tournament Elo"),
-    FeatureSpec("elo_diff", "game", "Elo difference team - opponent"),
-    FeatureSpec("net_rating_diff", "game", "Net rating difference team - opponent"),
-    FeatureSpec("tempo_diff", "game", "Tempo difference team - opponent"),
+    FeatureSpec("seed_diff", "game", "Seed difference team - opponent"),
+    FeatureSpec("rank_diff_POM", "game", "KenPom (POM) Massey ordinal rank difference"),
+    FeatureSpec("rank_diff_MOR", "game", "Massey (MOR) ordinal rank difference"),
+    FeatureSpec("rank_diff_SAG", "game", "Sagarin (SAG) ordinal rank difference"),
 ]
 
 

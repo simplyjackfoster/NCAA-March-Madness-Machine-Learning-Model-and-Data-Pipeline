@@ -9,7 +9,7 @@ from sklearn.model_selection import cross_val_predict
 
 from src.common.config import load_config
 
-FEATURES = ["elo_diff", "net_rating_diff", "tempo_diff", "seed_diff"]
+FEATURES = ["seed_diff", "rank_diff_POM", "rank_diff_MOR", "rank_diff_SAG"]
 
 
 def build_calibration_set(config_path: str = "configs/config.yaml") -> Path:

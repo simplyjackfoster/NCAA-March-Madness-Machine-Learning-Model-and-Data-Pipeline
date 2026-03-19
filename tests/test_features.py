@@ -6,8 +6,9 @@ from src.features.feature_registry import get_feature_names
 
 def test_feature_registry_has_core_features():
     names = get_feature_names()
-    assert "elo_diff" in names
-    assert "net_rating" in names
+    assert "seed_diff" in names
+    assert "rank_diff_POM" in names
+    assert "net_rating" in names  # team-level feature, unchanged
 
 
 def test_team_features_includes_kenpom_and_seed(tmp_path, monkeypatch):
@@ -90,39 +91,43 @@ def test_team_features_includes_kenpom_and_seed(tmp_path, monkeypatch):
     assert not df["seed"].isna().any()
 
 
-def test_game_features_includes_seed_diff(tmp_path):
-    """games parquet must include seed_diff column."""
+def test_game_features_writes_output_files(tmp_path):
+    """build_game_features must write games_{year}.parquet and train.parquet."""
     import yaml
     from src.features.game_features import build_game_features
 
     config = {
-        "project": {"target_year": 2025, "base_data_dir": str(tmp_path / "data"),
-                     "artifacts_dir": str(tmp_path / "artifacts"), "outputs_dir": str(tmp_path / "outputs")},
+        "project": {
+            "target_year": 2026,
+            "base_data_dir": str(tmp_path / "data"),
+            "artifacts_dir": str(tmp_path / "artifacts"),
+            "outputs_dir": str(tmp_path / "outputs"),
+        },
         "data": {"random_seed": 42, "num_teams": 4},
     }
     cfg_path = tmp_path / "config.yaml"
     cfg_path.write_text(yaml.dump(config))
 
-    year = 2025
-    feat_dir = tmp_path / "data" / "features"
-    feat_dir.mkdir(parents=True)
+    import pandas as pd
+    kaggle_dir = tmp_path / "data" / "raw" / "kaggle" / "downloads"
+    kaggle_dir.mkdir(parents=True)
+    pd.DataFrame({"Season": [2023], "WTeamID": [1101], "LTeamID": [1103]}).to_csv(
+        kaggle_dir / "MNCAATourneyCompactResults.csv", index=False
+    )
     pd.DataFrame({
-        "season": [year] * 4,
-        "kaggle_team_id": [1, 2, 3, 4],
-        "display_name": ["TeamA", "TeamB", "TeamC", "TeamD"],
-        "adj_o": [110.0, 105.0, 100.0, 95.0],
-        "adj_d": [90.0, 95.0, 100.0, 105.0],
-        "tempo": [70.0, 68.0, 66.0, 64.0],
-        "net_rating": [20.0, 10.0, 0.0, -10.0],
-        "elo_pre": [1660.0, 1580.0, 1500.0, 1420.0],
-        "adj_em": [20.0, 10.0, 0.0, -10.0],
-        "luck": [0.0] * 4,
-        "seed": [1, 8, 5, 4],
-    }).to_parquet(feat_dir / f"team_season_{year}.parquet", index=False)
+        "Season": [2023, 2023], "TeamID": [1101, 1103], "Seed": ["W01", "W12"],
+    }).to_csv(kaggle_dir / "MNCAATourneySeeds.csv", index=False)
+    pd.DataFrame({
+        "Season": [2023, 2023], "RankingDayNum": [128, 128],
+        "SystemName": ["POM", "POM"], "TeamID": [1101, 1103], "OrdinalRank": [5, 60],
+    }).to_csv(kaggle_dir / "MMasseyOrdinals.csv", index=False)
 
-    out = build_game_features(year, str(cfg_path))
+    out = build_game_features(2026, str(cfg_path))
+    assert out.exists()
+    assert (tmp_path / "data" / "processed" / "train.parquet").exists()
     df = pd.read_parquet(out)
-    assert "seed_diff" in df.columns, "seed_diff missing from game features"
+    assert "label" in df.columns
+    assert "seed_diff" in df.columns
 
 
 def test_build_calibration_set_produces_valid_probs(tmp_path):
@@ -143,13 +148,13 @@ def test_build_calibration_set_produces_valid_probs(tmp_path):
     proc_dir.mkdir(parents=True)
     rng = np.random.default_rng(42)
     n = 200
-    elo = rng.normal(0, 5, n)
+    seed_diff = rng.integers(-15, 15, n)
     pd.DataFrame({
-        "elo_diff": elo,
-        "net_rating_diff": elo * 0.5 + rng.normal(0, 2, n),
-        "tempo_diff": rng.normal(0, 1, n),
-        "seed_diff": rng.integers(-15, 15, n),
-        "label": (elo + rng.normal(0, 2, n) > 0).astype(int),
+        "seed_diff": seed_diff,
+        "rank_diff_POM": seed_diff * 4.0 + rng.normal(0, 5, n),
+        "rank_diff_MOR": seed_diff * 4.0 + rng.normal(0, 5, n),
+        "rank_diff_SAG": seed_diff * 4.0 + rng.normal(0, 5, n),
+        "label": (seed_diff + rng.normal(0, 3, n) < 0).astype(int),
     }).to_parquet(proc_dir / "train.parquet", index=False)
 
     out = build_calibration_set(str(cfg_path))
@@ -160,6 +165,59 @@ def test_build_calibration_set_produces_valid_probs(tmp_path):
     assert df["model_prob"].between(0, 1, inclusive="neither").all(), "model_prob must be in open interval (0, 1)"
     assert set(df["outcome"].unique()).issubset({0, 1})
     assert len(df) == n
+
+
+def test_game_features_uses_real_outcomes(tmp_path):
+    """build_game_features must produce binary labels from real tournament results,
+    with rank_diff_POM/MOR/SAG columns present, and NO synthetic rng.normal labels."""
+    import yaml
+    from src.features.game_features import build_game_features
+
+    config = {
+        "project": {
+            "target_year": 2026,
+            "base_data_dir": str(tmp_path / "data"),
+            "artifacts_dir": str(tmp_path / "artifacts"),
+            "outputs_dir": str(tmp_path / "outputs"),
+        },
+        "data": {"random_seed": 42, "num_teams": 4},
+    }
+    cfg_path = tmp_path / "config.yaml"
+    cfg_path.write_text(yaml.dump(config))
+
+    kaggle_dir = tmp_path / "data" / "raw" / "kaggle" / "downloads"
+    kaggle_dir.mkdir(parents=True)
+
+    import pandas as pd
+    pd.DataFrame({
+        "Season": [2023, 2023],
+        "WTeamID": [1101, 1102],
+        "LTeamID": [1103, 1104],
+    }).to_csv(kaggle_dir / "MNCAATourneyCompactResults.csv", index=False)
+
+    pd.DataFrame({
+        "Season": [2023] * 4,
+        "TeamID": [1101, 1102, 1103, 1104],
+        "Seed": ["W01", "W05", "W12", "W08"],
+    }).to_csv(kaggle_dir / "MNCAATourneySeeds.csv", index=False)
+
+    pd.DataFrame({
+        "Season": [2023] * 8,
+        "RankingDayNum": [128] * 8,
+        "SystemName": ["POM"] * 4 + ["MOR"] * 4,
+        "TeamID": [1101, 1102, 1103, 1104, 1101, 1102, 1103, 1104],
+        "OrdinalRank": [5, 20, 60, 30, 8, 22, 55, 28],
+    }).to_csv(kaggle_dir / "MMasseyOrdinals.csv", index=False)
+
+    out = build_game_features(2026, str(cfg_path))
+    df = pd.read_parquet(out)
+
+    assert "label" in df.columns
+    assert set(df["label"].unique()).issubset({0, 1}), "Labels must be binary"
+    assert "rank_diff_POM" in df.columns
+    assert "rank_diff_MOR" in df.columns
+    assert "rank_diff_SAG" in df.columns, "rank_diff_SAG must be present even if NaN-filled (SAG missing from fixture)"
+    assert len(df) == 4, "2 games × 2 mirror rows = 4 rows"
 
 
 def test_calibrator_produces_reasonable_probabilities(tmp_path):
