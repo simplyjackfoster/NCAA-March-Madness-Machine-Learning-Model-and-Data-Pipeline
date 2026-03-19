@@ -11,7 +11,7 @@ from src.common.config import load_config
 from src.common.io import write_json
 
 
-FEATURES = ["elo_diff", "net_rating_diff", "tempo_diff"]
+FEATURES = ["seed_diff", "rank_diff_POM", "rank_diff_MOR", "rank_diff_SAG"]
 
 
 def run_loyo(config_path: str = "configs/config.yaml") -> Path:

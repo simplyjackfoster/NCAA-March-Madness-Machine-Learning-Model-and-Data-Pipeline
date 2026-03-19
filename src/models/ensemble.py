@@ -14,16 +14,16 @@ def build_ensemble_weights(config_path: str = "configs/config.yaml") -> Path:
     root = cfg["_root"]
 
     train = pd.read_parquet(root / "data" / "processed" / "train.parquet")
-    feature_cols = ["elo_diff", "net_rating_diff", "tempo_diff", "seed_diff"]
+    feature_cols = ["seed_diff", "rank_diff_POM", "rank_diff_MOR", "rank_diff_SAG"]
     # Only correlate non-zero-variance features that exist in the data
     non_zero_var_cols = [col for col in feature_cols if col in train.columns and train[col].var() > 0]
     corrs = train[non_zero_var_cols].corrwith(train["label"]).reindex(feature_cols).fillna(0.0)
     strength = corrs.abs().clip(lower=1e-9)
     total = float(strength.sum())
     weights = {
-        "prior": float(strength["elo_diff"] / total),
-        "lgbm": float(strength["net_rating_diff"] / total),
-        "xgb": float(strength["tempo_diff"] / total),
+        "prior": float(strength["seed_diff"] / total),
+        "lgbm": float(strength["rank_diff_POM"] / total),
+        "xgb": float(strength["rank_diff_MOR"] / total),
     }
 
     out = root / "artifacts" / "models" / "ensemble_weights.pkl"
