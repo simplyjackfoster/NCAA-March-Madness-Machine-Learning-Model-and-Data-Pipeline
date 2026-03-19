@@ -488,28 +488,87 @@ Add Kaggle dir with minimal CSV files needed by `_load_seed_pair_win_rates`:
 
 - [ ] **Step 7: Update `test_matchup_matrix_probabilities_not_extreme` in `tests/test_simulation.py`**
 
-Same updates as Step 6: new FEATURES, new training DataFrame, add Massey rank columns to team features, add Kaggle dir.
+Apply the same fixture updates as Step 6 — new FEATURES training DataFrame, Massey rank columns in team_season parquet, and Kaggle CSV files. The full replacement for the fixture section (lines 152–175 of test_simulation.py):
 
-- [ ] **Step 8: Run all simulation tests**
-
-```bash
-python -m pytest tests/test_simulation.py -v
+```python
+    FEATURES = ["seed_diff", "rank_diff_POM", "rank_diff_MOR", "rank_diff_SAG"]
+    rng = np.random.default_rng(42)
+    n = 200
+    seed = rng.integers(-15, 15, n).astype(float)
+    X = pd.DataFrame({
+        "seed_diff": seed,
+        "rank_diff_POM": seed * 4.0 + rng.normal(0, 5, n),
+        "rank_diff_MOR": seed * 4.0 + rng.normal(0, 5, n),
+        "rank_diff_SAG": seed * 4.0 + rng.normal(0, 5, n),
+    })
+    y = (seed + rng.normal(0, 3, n) < 0).astype(int)
+    prior = LogisticRegression(max_iter=1000).fit(X, y)
 ```
 
-Expected: all PASS
+Team features parquet (replace lines 137–149):
 
-- [ ] **Step 9: Commit**
+```python
+    pd.DataFrame({
+        "season": [year] * 4,
+        "kaggle_team_id": [1, 2, 3, 4],
+        "display_name": ["TeamA", "TeamB", "TeamC", "TeamD"],
+        "adj_o": [120.0, 100.0, 85.0, 70.0], "adj_d": [70.0, 90.0, 105.0, 120.0],
+        "tempo": [70.0, 68.0, 66.0, 64.0],
+        "net_rating": [50.0, 10.0, -20.0, -50.0], "elo_pre": [1900.0, 1580.0, 1340.0, 1100.0],
+        "adj_em": [30.0, 10.0, -5.0, -20.0], "luck": [0.0] * 4, "seed": [1, 4, 5, 8],
+        "massey_rank_POM": [5.0, 25.0, 60.0, 120.0],
+        "massey_rank_MOR": [7.0, 28.0, 62.0, 115.0],
+        "massey_rank_SAG": [4.0, 22.0, 58.0, 118.0],
+    }).to_parquet(feat_dir / f"team_season_{year}.parquet", index=False)
+```
+
+Add Kaggle dir (add after the calibrator save block):
+
+```python
+    kaggle_dir = tmp_path / "data" / "raw" / "kaggle" / "downloads"
+    kaggle_dir.mkdir(parents=True)
+    pd.DataFrame({"Season": [2020], "WTeamID": [1], "LTeamID": [4]}).to_csv(
+        kaggle_dir / "MNCAATourneyCompactResults.csv", index=False
+    )
+    pd.DataFrame({"Season": [2020, 2020], "TeamID": [1, 4], "Seed": ["W01", "W08"]}).to_csv(
+        kaggle_dir / "MNCAATourneySeeds.csv", index=False
+    )
+```
+
+- [ ] **Step 8: Also update `loyo_validator.py` FEATURES list**
+
+`src/models/loyo_validator.py` line 14 hard-codes the old feature list and will raise `KeyError` after `train.parquet` changes:
+
+```python
+# Old:
+FEATURES = ["elo_diff", "net_rating_diff", "tempo_diff"]
+
+# New:
+FEATURES = ["seed_diff", "rank_diff_POM", "rank_diff_MOR", "rank_diff_SAG"]
+```
+
+- [ ] **Step 9: Run ensemble and non-matchup simulation tests only**
+
+Run only the tests that do NOT require the new `matchup_matrix.py` (those come in Chunk 2). The matchup_matrix tests will fail until the rewrite in the next chunk — skip them here.
 
 ```bash
-git add src/models/prior_model.py src/models/lgbm_model.py src/models/xgb_model.py src/models/ensemble.py tests/test_simulation.py
-git commit -m "feat: update model trainers to use new Massey-based feature set"
+python -m pytest tests/test_simulation.py::test_ensemble_weights_constant_feature tests/test_simulation.py::test_xgb_no_use_label_encoder_warning -v
+```
+
+Expected: PASS
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add src/models/prior_model.py src/models/lgbm_model.py src/models/xgb_model.py src/models/ensemble.py src/models/loyo_validator.py tests/test_simulation.py
+git commit -m "feat: update model trainers and loyo_validator to use new Massey-based feature set"
 ```
 
 ---
 
 ## Chunk 2: Massey Rankings in Team Features and Matchup Matrix
 
-### Task 2: Add Massey rank columns to `team_features.py`
+### Task 3: Add Massey rank columns to `team_features.py`
 
 **Files:**
 - Modify: `src/features/team_features.py`
@@ -676,7 +735,7 @@ git commit -m "feat: add Massey ranking columns to team features"
 
 ---
 
-### Task 3: Update matchup matrix to use new features + seed-pair blending
+### Task 4: Update matchup matrix to use new features + seed-pair blending
 
 **Files:**
 - Modify: `src/simulation/matchup_matrix.py`
@@ -755,13 +814,20 @@ def test_matchup_matrix_blends_seed_pair_probabilities(tmp_path, monkeypatch):
     with (art_dir / "prior_model.pkl").open("wb") as f:
         pickle.dump(lr, f)
 
-    # Write a dummy calibrator
+    # Write a fixed calibrator that always returns 0.5 — pinning Platt output so we
+    # can verify the blending formula numerically.
+    # Expected for 1v16: 0.7 * 0.5 + 0.3 * (136/138) = 0.350 + 0.296 = 0.646
+    class FixedCalibrator:
+        def predict_proba(self, X):
+            return np.column_stack([
+                np.full(len(X), 0.5),
+                np.full(len(X), 0.5),
+            ])
+
     cal_dir = tmp_path / "artifacts" / "calibrators"
     cal_dir.mkdir(parents=True)
-    cal = LogisticRegression()
-    cal.fit([[0.1], [0.5], [0.9]], [0, 0, 1])
     with (cal_dir / "isotonic.pkl").open("wb") as f:
-        pickle.dump(cal, f)
+        pickle.dump(FixedCalibrator(), f)
 
     # Write Kaggle files for seed-pair win rates
     kaggle_dir = tmp_path / "data" / "raw" / "kaggle" / "downloads"
@@ -780,15 +846,15 @@ def test_matchup_matrix_blends_seed_pair_probabilities(tmp_path, monkeypatch):
     out = build_matchup_matrix(2026, str(cfg_path))
     mat = np.load(out)
 
-    # team index 0 = seed 1, index 1 = seed 16
-    # Historical rate for 1v16 = 136/138 ≈ 0.9855
-    # Verify blending is applied: final must be between platt_prob and historical_rate
-    # (not equal to raw platt_prob, which would be ~0.5 from the dummy untrained model)
+    # FixedCalibrator always returns Platt=0.5.
+    # Historical rate for 1v16 = 136/138 ≈ 0.9855.
+    # Expected blended value: 0.7 * 0.5 + 0.3 * 0.9855 = 0.6457
     prob_1_beats_16 = mat[0, 1]
-    assert prob_1_beats_16 > 0.70, (
-        f"1v16 prob {prob_1_beats_16:.3f} too low — blending with 0.986 historical rate not applied"
+    expected = 0.7 * 0.5 + 0.3 * (136 / 138)
+    assert abs(prob_1_beats_16 - expected) < 0.05, (
+        f"1v16 blended prob {prob_1_beats_16:.4f} expected ~{expected:.4f} — "
+        f"blending formula not applied correctly"
     )
-    assert prob_1_beats_16 <= 0.99, f"1v16 prob {prob_1_beats_16:.3f} unreasonably high"
 ```
 
 - [ ] **Step 3: Run test to confirm it fails**
@@ -924,11 +990,22 @@ git add src/simulation/matchup_matrix.py tests/test_simulation.py
 git commit -m "feat: update matchup matrix with Massey features and seed-pair blending"
 ```
 
+- [ ] **Step 8: Run full simulation test suite (deferred from Task 2)**
+
+Now that `matchup_matrix.py` is rewritten with the new feature set, the matchup_matrix tests can run:
+
+```bash
+python -m pytest tests/test_simulation.py -v
+```
+
+Expected: all PASS
+```
+
 ---
 
 ## Chunk 3: Integration Validation
 
-### Task 4: Run pipeline and verify upset count
+### Task 5: Run pipeline and verify upset count
 
 **Files:** No code changes — pipeline run only.
 
