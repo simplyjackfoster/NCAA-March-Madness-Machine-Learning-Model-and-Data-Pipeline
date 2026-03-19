@@ -11,7 +11,7 @@ from src.common.io import write_json
 def select_final_bracket(year: int, config_path: str = "configs/config.yaml"):
     cfg = load_config(config_path)
     root = cfg["_root"]
-    df = pd.read_parquet(root / "data" / "optimization" / f"candidates_{year}.parquet")
+    df = pd.read_parquet(root / "data" / "optimization" / f"leveraged_candidates_{year}.parquet")
     min_champ_prob = float(cfg["optimization"]["min_champion_prob"])
     risk = cfg["optimization"]["risk_tolerance"]
     pool_size = int(cfg["optimization"]["pool_size"])
@@ -34,6 +34,18 @@ def select_final_bracket(year: int, config_path: str = "configs/config.yaml"):
     out_csv.parent.mkdir(parents=True, exist_ok=True)
 
     viable.to_csv(out_csv, index=False)
+
+    top3 = viable.head(3)
+    top_picks = [
+        {
+            "champion": row["champion"],
+            "model_prob": float(row["champ_prob"]),
+            "field_pick": float(row["field_pick"]),
+            "p_win_pool": float(row["p_win_pool"]),
+        }
+        for _, row in top3.iterrows()
+    ]
+
     write_json(
         out_json,
         {
@@ -43,6 +55,7 @@ def select_final_bracket(year: int, config_path: str = "configs/config.yaml"):
             "champ_prob": float(final["champ_prob"]),
             "p_win_pool": float(final["p_win_pool"]),
             "leverage_score": float(final["leverage_score"]),
+            "top_picks": top_picks,
         },
     )
     return out_json, out_csv
