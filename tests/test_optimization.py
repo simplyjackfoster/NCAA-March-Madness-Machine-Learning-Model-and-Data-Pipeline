@@ -235,3 +235,39 @@ def test_pool_simulator_p_win_in_range(tmp_path):
     assert len(df) == 4  # one row per team
     # Top P(win pool) should be for either TeamA or TeamC (both strong)
     assert df.iloc[0]["champion"] in ("TeamA", "TeamC")
+
+
+def test_leverage_preserves_p_win_pool(tmp_path):
+    """compute_leverage must not overwrite p_win_pool from pool simulator."""
+    import yaml
+    import pandas as pd
+    from src.optimization.leverage import compute_leverage
+
+    config = {
+        "project": {"target_year": 2025, "base_data_dir": str(tmp_path / "data"),
+                     "artifacts_dir": str(tmp_path / "artifacts"), "outputs_dir": str(tmp_path / "outputs")},
+        "data": {"random_seed": 42, "num_teams": 4},
+        "optimization": {"pool_size": 20, "pool_sims": 200, "min_champion_prob": 0.02,
+                         "risk_tolerance": "balanced"},
+    }
+    cfg_path = tmp_path / "config.yaml"
+    cfg_path.write_text(yaml.dump(config))
+
+    opt_dir = tmp_path / "data" / "optimization"
+    opt_dir.mkdir(parents=True)
+    # Write expected_scores with a known p_win_pool value
+    pd.DataFrame({
+        "champion": ["TeamA", "TeamB"],
+        "champ_prob": [0.35, 0.20],
+        "field_pick": [0.15, 0.08],
+        "leverage_score": [2.33, 2.50],
+        "expected_score": [67.2, 38.4],
+        "p_win_pool": [0.124, 0.091],   # from pool simulator — must be preserved
+    }).to_parquet(opt_dir / "expected_scores_2025.parquet", index=False)
+
+    out = compute_leverage(2025, str(cfg_path))
+    df = pd.read_parquet(out)
+
+    assert df.loc[df["champion"] == "TeamA", "p_win_pool"].iloc[0] == 0.124, \
+        "p_win_pool must be preserved from pool simulator"
+    assert df.loc[df["champion"] == "TeamB", "p_win_pool"].iloc[0] == 0.091
