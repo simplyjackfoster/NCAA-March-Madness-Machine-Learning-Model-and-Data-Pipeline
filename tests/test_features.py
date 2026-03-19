@@ -260,3 +260,73 @@ def test_calibrator_produces_reasonable_probabilities(tmp_path):
     calibrated = cal.predict_proba(high_prob)[0, 1]
     assert calibrated < 0.95, f"Calibrated prob {calibrated:.3f} still too high"
     assert calibrated > 0.70, f"Calibrated prob {calibrated:.3f} unreasonably low for 0.95 raw input"
+
+
+def test_team_features_includes_massey_ranks(tmp_path, monkeypatch):
+    """team_season parquet must include massey_rank_POM, massey_rank_MOR, massey_rank_SAG."""
+    import yaml
+    import pandas as pd
+    from src.common import config as config_module
+
+    config = {
+        "project": {
+            "target_year": 2026,
+            "base_data_dir": str(tmp_path / "data"),
+            "artifacts_dir": str(tmp_path / "artifacts"),
+            "outputs_dir": str(tmp_path / "outputs"),
+        },
+        "data": {"random_seed": 42, "num_teams": 4},
+        "data_sources": {},
+    }
+    cfg_path = tmp_path / "config.yaml"
+    cfg_path.write_text(yaml.dump(config))
+
+    def mock_load_config(config_path="configs/config.yaml"):
+        import yaml as _yaml
+        cfg = _yaml.safe_load(cfg_path.open())
+        cfg["_root"] = tmp_path
+        return cfg
+
+    monkeypatch.setattr(config_module, "load_config", mock_load_config)
+
+    import src.features.team_features as _tf_module
+    monkeypatch.setattr(_tf_module, "load_config", mock_load_config)
+
+    year = 2026
+    bt_dir = tmp_path / "data" / "raw" / "barttorvik"
+    bt_dir.mkdir(parents=True)
+    pd.DataFrame({
+        "season": [year] * 2,
+        "team_name": ["TeamA", "TeamB"],
+        "adj_o": [110.0, 100.0],
+        "adj_d": [90.0, 100.0],
+        "tempo": [70.0, 65.0],
+    }).to_csv(bt_dir / f"barttorvik_{year}.csv", index=False)
+
+    cx_dir = tmp_path / "data" / "crosswalks"
+    cx_dir.mkdir(parents=True)
+    pd.DataFrame({
+        "barttorvik_name": ["TeamA", "TeamB"],
+        "kaggle_team_id": [1101, 1102],
+        "display_name": ["TeamA", "TeamB"],
+    }).to_csv(cx_dir / "team_id_map.csv", index=False)
+
+    kaggle_dir = tmp_path / "data" / "raw" / "kaggle" / "downloads"
+    kaggle_dir.mkdir(parents=True)
+    pd.DataFrame({
+        "Season": [year, year],
+        "RankingDayNum": [128, 128],
+        "SystemName": ["POM", "POM"],
+        "TeamID": [1101, 1102],
+        "OrdinalRank": [15, 45],
+    }).to_csv(kaggle_dir / "MMasseyOrdinals.csv", index=False)
+
+    from src.features.team_features import build_team_features
+    out = build_team_features(year, "dummy_config")
+    df = pd.read_parquet(out)
+
+    assert "massey_rank_POM" in df.columns, "massey_rank_POM missing"
+    assert "massey_rank_MOR" in df.columns, "massey_rank_MOR missing (should be NaN-filled)"
+    assert "massey_rank_SAG" in df.columns, "massey_rank_SAG missing (should be NaN-filled)"
+    row_a = df[df["display_name"] == "TeamA"].iloc[0]
+    assert row_a["massey_rank_POM"] == 15.0

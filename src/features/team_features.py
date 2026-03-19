@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from src.common.config import load_config
@@ -34,6 +35,32 @@ def build_team_features(year: int, config_path: str = "configs/config.yaml") -> 
     teams["adj_em"] = teams["adj_em"].fillna(teams["net_rating"])
     teams["luck"] = teams["luck"].fillna(0.0)
 
+    # Massey ordinals (POM, MOR, SAG) for this year
+    _MASSEY_SYSTEMS = ["POM", "MOR", "SAG"]
+    massey_path = root / "data" / "raw" / "kaggle" / "downloads" / "MMasseyOrdinals.csv"
+    if massey_path.exists():
+        massey = pd.read_csv(massey_path)
+        pre = massey[(massey["Season"] == year) & (massey["RankingDayNum"] <= 133)]
+        for system in _MASSEY_SYSTEMS:
+            sys_df = (
+                pre[pre["SystemName"] == system]
+                .sort_values("RankingDayNum")
+                .groupby("TeamID")
+                .tail(1)[["TeamID", "OrdinalRank"]]
+                .rename(columns={"OrdinalRank": f"massey_rank_{system}"})
+            )
+            teams = teams.merge(
+                sys_df.rename(columns={"TeamID": "kaggle_team_id"}),
+                on="kaggle_team_id",
+                how="left",
+            )
+    for system in ["POM", "MOR", "SAG"]:
+        col = f"massey_rank_{system}"
+        if col not in teams.columns:
+            teams[col] = np.nan
+        # Fill missing with median rank (neutral fallback)
+        teams[col] = teams[col].fillna(teams[col].median())
+
     # Seed from bracket
     if bracket_path.exists():
         bracket = pd.read_csv(bracket_path)
@@ -54,6 +81,9 @@ def build_team_features(year: int, config_path: str = "configs/config.yaml") -> 
         "adj_em",
         "luck",
         "seed",
+        "massey_rank_POM",
+        "massey_rank_MOR",
+        "massey_rank_SAG",
     ]
     out_path = root / "data" / "features" / f"team_season_{year}.parquet"
     out_path.parent.mkdir(parents=True, exist_ok=True)
